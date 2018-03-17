@@ -114,12 +114,19 @@ func (client *Client) SetVariable(key, value string) *Client {
 	return client
 }
 
+func (client *Client) SetRectangle(top int, left int, width int, height int) *Client {
+	fmt.Println("Setting rectangle!")
+	return client.SetRectangle(top, left, width, height)
+}
+
 // SetPageSegMode sets "Page Segmentation Mode" (PSM) to detect layout of characters.
 // See official documentation for PSM here https://github.com/tesseract-ocr/tesseract/wiki/ImproveQuality#page-segmentation-method
 func (client *Client) SetPageSegMode(mode PageSegMode) *Client {
 	client.PageSegMode = &mode
 	return client
 }
+
+
 
 // SetConfigFile sets the file path to config file.
 func (client *Client) SetConfigFile(fpath string) error {

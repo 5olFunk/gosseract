@@ -52,6 +52,11 @@ void SetImageFromBuffer(TessBaseAPI a, unsigned char* data, int size) {
   api->SetImage(image);
 }
 
+void SetRectangle(TessBaseAPI a, int left, int top, int width, int height) {
+  tesseract::TessBaseAPI * api = (tesseract::TessBaseAPI*)a;
+  api->SetRectangle(left, top, width, height);
+}
+
 void SetPageSegMode(TessBaseAPI a, int m) {
   tesseract::TessBaseAPI * api = (tesseract::TessBaseAPI*)a;
   tesseract::PageSegMode mode = (tesseract::PageSegMode)m;
