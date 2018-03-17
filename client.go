@@ -28,7 +28,6 @@ func Version() string {
 // Client is argument builder for tesseract::TessBaseAPI.
 type Client struct {
 	api C.TessBaseAPI
-
 	// Trim specifies characters to trim, which would be trimed from result string.
 	// As results of OCR, text often contains unnecessary characters, such as newlines, on the head/foot of string.
 	// If `Trim` is set, this client will remove specified characters from the result.
@@ -48,6 +47,9 @@ type Client struct {
 	// ImageData is the in-memory image to be processed OCR.
 	ImageData []byte
 
+	// Regions is a list of all the rectangles which need to be recognized on the current image.
+	Regions []Rectangle
+
 	// Variables is just a pool to evaluate "tesseract::TessBaseAPI->SetVariable" in delay.
 	// TODO: Think if it should be public, or private property.
 	Variables map[string]string
@@ -60,6 +62,26 @@ type Client struct {
 	// See http://www.sk-spell.sk.cx/tesseract-ocr-parameters-in-302-version
 	// TODO: Fix link to official page
 	ConfigFilePath string
+}
+
+type Rectangle struct {
+	Left   int
+	Top    int
+	Width  int
+	Height int
+}
+
+type TextRegion struct {
+	Region Rectangle
+	Text   string
+}
+
+func (client *Client) getTextRegions() []TextRegion {
+	res := make([]TextRegion, len(client.Regions))
+	for i, region := range client.Regions {
+		res[i].Region = region
+	}
+	return res
 }
 
 // NewClient construct new Client. It's due to caller to Close this client.
@@ -114,9 +136,11 @@ func (client *Client) SetVariable(key, value string) *Client {
 	return client
 }
 
-func (client *Client) SetRectangle(top int, left int, width int, height int) *Client {
-	fmt.Println("Setting rectangle!")
-	return client.SetRectangle(top, left, width, height)
+// SetRectangles (if used) sets the regions of the image which should be recognized.
+// Can be called with an empty array to clear the regions list.
+func (client *Client) SetRectangles(rectangles []Rectangle) *Client {
+	client.Regions = rectangles
+	return client
 }
 
 // SetPageSegMode sets "Page Segmentation Mode" (PSM) to detect layout of characters.
@@ -125,8 +149,6 @@ func (client *Client) SetPageSegMode(mode PageSegMode) *Client {
 	client.PageSegMode = &mode
 	return client
 }
-
-
 
 // SetConfigFile sets the file path to config file.
 func (client *Client) SetConfigFile(fpath string) error {
@@ -224,6 +246,30 @@ func (client *Client) Text() (out string, err error) {
 	out = C.GoString(C.UTF8Text(client.api))
 	if client.Trim {
 		out = strings.Trim(out, "\n")
+	}
+	return out, err
+}
+
+// TextRegions behaves just like Text except that it returns a list of tuples with rectangles and the content of those rectangles.
+func (client *Client) TextRegions() (out []TextRegion, err error) {
+	if err = client.init(); err != nil {
+		return
+	}
+	if err = client.prepare(); err != nil {
+		return
+	}
+	out = client.getTextRegions()
+	for _, r := range out {
+		rect := r.Region
+		C.SetRectangle(
+			client.api,
+			C.int(rect.Left),
+			C.int(rect.Top),
+			C.int(rect.Width),
+			C.int(rect.Height),
+		)
+		r.Text = C.GoString(C.UTF8Text(client.api))
+		//fmt.Printf("[%d, %d, %d, %d] = %s\n", rect.Left, rect.Top, rect.Width, rect.Height, r.Text)
 	}
 	return out, err
 }
