@@ -47,8 +47,8 @@ type Client struct {
 	// ImageData is the in-memory image to be processed OCR.
 	ImageData []byte
 
-	// Regions is a list of all the rectangles which need to be recognized on the current image.
-	Regions []Rectangle
+	// Fields is a list of all the fields which need to be recognized on the current image.
+	Fields []Field
 
 	// Variables is just a pool to evaluate "tesseract::TessBaseAPI->SetVariable" in delay.
 	// TODO: Think if it should be public, or private property.
@@ -64,24 +64,21 @@ type Client struct {
 	ConfigFilePath string
 }
 
-type Rectangle struct {
-	Left   int
-	Top    int
-	Width  int
-	Height int
+type Region struct {
+	Left   int64
+	Top    int64
+	Width  int64
+	Height int64
 }
 
-type TextRegion struct {
-	Region Rectangle
+type Field struct {
+	Region Region
 	Text   string
+	Name   string
 }
 
-func (client *Client) getTextRegions() []TextRegion {
-	res := make([]TextRegion, len(client.Regions))
-	for i, region := range client.Regions {
-		res[i].Region = region
-	}
-	return res
+func (client *Client) getFields() []Field {
+	return client.Fields
 }
 
 // NewClient construct new Client. It's due to caller to Close this client.
@@ -136,10 +133,10 @@ func (client *Client) SetVariable(key, value string) *Client {
 	return client
 }
 
-// SetRectangles (if used) sets the regions of the image which should be recognized.
+// SetRegions (if used) sets the regions of the image which should be recognized.
 // Can be called with an empty array to clear the regions list.
-func (client *Client) SetRectangles(rectangles []Rectangle) *Client {
-	client.Regions = rectangles
+func (client *Client) SetFields(fields []Field) *Client {
+	client.Fields = fields
 	return client
 }
 
@@ -250,16 +247,17 @@ func (client *Client) Text() (out string, err error) {
 	return out, err
 }
 
-// TextRegions behaves just like Text except that it returns a list of tuples with rectangles and the content of those rectangles.
-func (client *Client) TextRegions() (out []TextRegion, err error) {
+// GetFieldResults behaves just like Text except that it returns a list of tuples with rectangles and the content of those rectangles.
+func (client *Client) GetFieldResults() (out []Field, err error) {
 	if err = client.init(); err != nil {
 		return
 	}
 	if err = client.prepare(); err != nil {
 		return
 	}
-	out = client.getTextRegions()
-	for _, r := range out {
+	fields := client.getFields()
+	out = fields[:0]
+	for _, r := range fields {
 		rect := r.Region
 		C.SetRectangle(
 			client.api,
@@ -269,6 +267,7 @@ func (client *Client) TextRegions() (out []TextRegion, err error) {
 			C.int(rect.Height),
 		)
 		r.Text = C.GoString(C.UTF8Text(client.api))
+		out = append(out, r)
 		//fmt.Printf("[%d, %d, %d, %d] = %s\n", rect.Left, rect.Top, rect.Width, rect.Height, r.Text)
 	}
 	return out, err
